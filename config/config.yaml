@@ -1,0 +1,6 @@
+keys:
+  stock_key: 'YX585dbl6mHbJX8gtLzESZ4MdpAdYfhg'
+
+requests:
+  stock_url: "https://financialmodelingprep.com/stable/historical-chart/5min?symbol={symbol}&from={fromdate}&to={todate}&apikey={api_key}"
+  eod_url: "https://financialmodelingprep.com/stable/historical-price-eod/full?symbol={symbol}&from={fromdate}&to={todate}&apikey={api_key}"
