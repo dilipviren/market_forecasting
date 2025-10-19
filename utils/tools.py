@@ -8,9 +8,8 @@ import yaml
 
 class GetConfig:
     """Handles reading configuration files."""
-    
     @staticmethod
-    def get_config():
+    def get_config() -> dict:
         project_root = Path(__file__).resolve().parent.parent
         config_path = project_root / 'config' / 'config.yaml'
         with open(config_path, 'r') as file:
@@ -21,20 +20,22 @@ class GetConfig:
 
 class PortfolioReader:
     """Reads portfolio CSV files from the 'portfolio' directory."""
+    def __init__(self):
+        pass
 
-    @staticmethod
-    def read_csv(filename: str = "stock_portfolio.csv") -> pd.DataFrame:
-        csv_path = Path("portfolio") / filename
-        if not csv_path.exists():
-            raise FileNotFoundError(f"CSV file not found: {csv_path}")
-        return pd.read_csv(csv_path)
-        
-    
+    def read_portfolio(filename: str = "stock_portfolio.csv") -> pd.DataFrame:
+        project_root = Path(__file__).resolve().parent.parent
+        portfolio_path = project_root / 'portfolio' / filename
+        if not portfolio_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {portfolio_path}")
+        return pd.read_csv(portfolio_path)
+
+
 if __name__ == "__main__":
     config = GetConfig.get_config()
     print(config)
 
-    portfolio_df = PortfolioReader.read_csv()
+    portfolio_df = PortfolioReader().read_portfolio()
     print(portfolio_df)
 
 
