@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class StockForecaster:
-    def __init__(self, data, target_col='Close', test_size=0.2, look_back=60):
+    def __init__(self, train, test, target_col='Close', feature_cols=None, test_size=0.2, look_back=60):
         """
         Initialize the forecaster.
         
@@ -28,25 +28,36 @@ class StockForecaster:
             test_size (float): Fraction of data to use for testing (0.2 = 20%).
             look_back (int): Number of past days to consider for LSTM sequences.
         """
-        self.data = data
+        # self.data = data
         self.target_col = target_col
-        self.test_size = test_size
+        # self.test_size = test_size
+        # self.data = train
         self.look_back = look_back
         
         # Preprocessing: Ensure data is sorted
         self.data = self.data.sort_index()
         
         # Split Index for Time Series (No shuffling)
-        split_idx = int(len(self.data) * (1 - self.test_size))
-        self.train_data = self.data.iloc[:split_idx]
-        self.test_data = self.data.iloc[split_idx:]
+        # split_idx = int(len(self.data) * (1 - self.test_size))
+        self.train_data = train
+        self.test_data = test
+        # self.train_data = self.data.iloc[:split_idx]
+        # self.test_data = self.data.iloc[split_idx:]
         
         # Prepare arrays for Scikit-Learn models (X = Time/Index, y = Price)
         # Note: Using integer index for regression on time
-        self.X_train_reg = np.arange(len(self.train_data)).reshape(-1, 1)
-        self.y_train_reg = self.train_data[self.target_col].values
-        self.X_test_reg = np.arange(len(self.train_data), len(self.data)).reshape(-1, 1)
-        self.y_test_reg = self.test_data[self.target_col].values
+        if feature_cols is None:
+            self.X_train_reg = np.arange(len(self.train_data)).reshape(-1, 1)
+            self.y_train_reg = self.train_data[self.target_col].values
+            self.X_test_reg = np.arange(len(self.train_data), len(self.data)).reshape(-1, 1)
+            self.y_test_reg = self.test_data[self.target_col].values
+
+        # Prepare arrays for Models
+        else:
+            self.X_train_reg = self.train_data[self.feature_cols].values
+            self.y_train_reg = self.train_data[self.target_col].values
+            self.X_test_reg = self.test_data[self.feature_cols].values
+            self.y_test_reg = self.test_data[self.target_col].values
 
     def _evaluate(self, y_true, y_pred, model_name):
         """Helper to print performance metrics."""
@@ -167,9 +178,9 @@ class StockForecaster:
         results = {}
         print("--- Starting Model Evaluation ---")
         
-        results['Linear Regression'] = self.linear_regression()
-        results['Decision Tree'] = self.decision_tree()
-        results['SVR'] = self.support_vector_regression()
+        # results['Linear Regression'] = self.linear_regression()
+        # results['Decision Tree'] = self.decision_tree()
+        # results['SVR'] = self.support_vector_regression()
         results['TES'] = self.tes_holt_winters()
         try:
             results['AutoARIMA'] = self.auto_arima()
