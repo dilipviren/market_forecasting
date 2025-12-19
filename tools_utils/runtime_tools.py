@@ -20,9 +20,8 @@ class GetConfig:
 
 class PortfolioReader:
     """Reads portfolio CSV files from the 'portfolio' directory."""
-    def __init__(self):
-        pass
 
+    @staticmethod
     def read_portfolio(filename: str = "stock_portfolio.csv") -> pd.DataFrame:
         project_root = Path(__file__).resolve().parent.parent
         portfolio_path = project_root / 'portfolio' / filename

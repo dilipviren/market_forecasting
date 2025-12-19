@@ -5,7 +5,7 @@ import os
 import sys
 import yaml
 import certifi
-import tools
+import tools_utils.runtime_tools as runtime_tools
 from dotenv import load_dotenv
 
 try:
@@ -52,7 +52,7 @@ class DataImporter:
         """
 
         final_data = pd.DataFrame()
-        config = tools.GetConfig.get_config()
+        config = runtime_tools.GetConfig.get_config()
         load_dotenv()
         api_key = os.getenv('API_KEY')
         for index, row in portfolio_df.iterrows():
@@ -77,6 +77,8 @@ class DataImporter:
             except Exception as e:
                 print(f"An error occurred while fetching data for {symbol}: {e}")
             final_data = pd.concat([final_data, data_frame], ignore_index=True)
+        final_data = final_data[config['select_cols']]
+        final_data.columns = [col.upper() for col in final_data.columns]
 
         return final_data
 
@@ -118,9 +120,9 @@ class DataFetch:
                 with open(self.config_path, 'r') as file:
                     config = yaml.safe_load(file)
             else:
-                config = tools.GetConfig.get_config()
+                config = runtime_tools.GetConfig.get_config()
         except Exception:
-            config = tools.GetConfig.get_config()
+            config = runtime_tools.GetConfig.get_config()
 
         from_date = self.from_date
         to_date = self.to_date

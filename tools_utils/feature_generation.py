@@ -1,7 +1,10 @@
 import pandas as pd
 # pd.set_option('display.max_columns', None)
 import numpy as np
-
+import tools_utils.runtime_tools as runtime_tools
+from dotenv import load_dotenv
+config = runtime_tools.GetConfig.get_config()
+columns_config = config['columns']
 
 class Indicator:
     '''A class for calculating various technical indicators on a given DataFrame.
@@ -18,11 +21,11 @@ class Indicator:
         drop_cols(colname): Drops the specified column from the DataFrame.
         view_cols(): Returns the column names of the DataFrame.
         set_colnames(col_names): Sets the column names of the DataFrame.
-        make_up_down(): Creates a column 'movement' indicating the up or down signals from the 'Close' column.
+        make_up_down(): Creates a column 'movement' indicating the up or down signals from the config['columns']['close_col'] column.
         get_df(): Returns the DataFrame.
         index_reset(): Resets the index of the DataFrame.
-        sma(n=5): Calculates the simple moving averages of the 'Close' column and adds a new column to the DataFrame.
-        wma(n=5): Calculates the weighted moving averages of the 'Close' column and adds a new column to the DataFrame.
+        sma(n=5): Calculates the simple moving averages of the config['columns']['close_col'] column and adds a new column to the DataFrame.
+        wma(n=5): Calculates the weighted moving averages of the config['columns']['close_col'] column and adds a new column to the DataFrame.
         momentum(n=7): Calculates the momentum column for a given period and adds a new column to the DataFrame.
         stochastic_k(period=14): Calculates the stochastic k% for a given period and adds a new column to the DataFrame.
         stochastic_d(period=3): Calculates the stochastic d% using the previously calculated k% and adds a new column to the DataFrame.
@@ -32,10 +35,10 @@ class Indicator:
         cci(period=20): Calculates the commodity channel index (CCI) for a given period and adds a new column to the DataFrame.
         '''
 
-    def __init__(self, df, td=False):
+    def __init__(self, df, td=False, imp_features=None):
         self.df = df
         self.td = td
-        self.imp_features = None
+        self.imp_features = imp_features
         self.k = None
         self.inter = pd.DataFrame()
 
@@ -56,7 +59,7 @@ class Indicator:
         creates column movement which contains the up or down signals from Close column
         :return: None
         """
-        self.df['movement'] = np.sign(self.df['Close'].diff().fillna(0))
+        self.df['movement'] = np.sign(self.df[config['columns']['close_col']].diff().fillna(0))
 
     def get_df(self):
         return self.df
@@ -73,26 +76,57 @@ class Indicator:
         :return: None
         """
         if not self.td:
-            self.df[f'sma_{n}'] = self.df['Close'].rolling(window=n, min_periods=1).mean()
+            self.df[f'sma_{n}'] = self.df[config['columns']['close_col']].rolling(window=n, min_periods=1).mean()
         else:
-            self.df[f'sma_{n}_td'] = np.sign(self.df['Close'] - self.df['Close'].rolling(window=n, min_periods=1).mean())
+            self.df[f'sma_{n}_td'] = np.sign(self.df[config['columns']['close_col']] - self.df[config['columns']['close_col']].rolling(window=n, min_periods=1).mean())
+
+    # def wma(self, n=5):
+    #     denom = n*(n+1)/2
+    #     closes = list(self.df[config['columns']['close_col']])
+    #     means = []
+    #     for i in range(len(closes)):
+    #         if n < i < len(closes)-n:
+    #             mean = closes[i]
+    #         else:
+    #             mean = sum(closes[i-n:i])/denom
+    #         means.append(mean)
+    #     if not self.td:
+    #         self.df[f'wma_{n}'] = means
+    #     else:
+    #         means.insert(0, 0)
+    #         means = np.array(means)
+    #         self.df[f'wma_{n}_td'] = np.sign(np.diff(means))
 
     def wma(self, n=5):
-        denom = n*(n+1)/2
-        closes = list(self.df['Close'])
+        closes = list(self.df[config['columns']['close_col']])
         means = []
+
         for i in range(len(closes)):
-            if n < i < len(closes)-n:
-                mean = closes[i]
-            else:
-                mean = sum(closes[i-n:i])/denom
+            # Determine how much data we actually have available
+            # Window goes from i-n+1 to i, but shrinks if out of bounds
+            start = max(0, i - n + 1)
+            window = closes[start:i+1]
+
+            # Effective window size
+            win_size = len(window)
+
+            # Weighted denominator for available window
+            denom = win_size * (win_size + 1) / 2
+
+            # Weighted Moving Average computation
+            weights = list(range(1, win_size + 1))
+            weighted_sum = sum(w * p for w, p in zip(weights, window))
+            mean = weighted_sum / denom
+
             means.append(mean)
+
+        # Handle trend direction output
         if not self.td:
-            self.df[f'wma_{n}'] = means
+            self.df[f"wma_{n}"] = means
         else:
-            means.insert(0, 0)
             means = np.array(means)
-            self.df[f'wma_{n}_td'] = np.sign(np.diff(means))
+            td = np.sign(np.diff(means, prepend=means[0]))
+            self.df[f"wma_{n}_td"] = td
 
     def momentum(self, n=7):
         """
@@ -101,9 +135,9 @@ class Indicator:
         :return: None
         """
         if not self.td:
-            self.df[f'momentum_{n}'] = self.df['Close'] - self.df['Close'].shift(n).fillna(0)
+            self.df[f'momentum_{n}'] = self.df[config['columns']['close_col']] - self.df[config['columns']['close_col']].shift(n).fillna(0)
         else:
-            temp = (self.df['Close'] - self.df['Close'].shift(n).fillna(0))
+            temp = (self.df[config['columns']['close_col']] - self.df[config['columns']['close_col']].shift(n).fillna(0))
             self.df[f'momentum_{n}_td'] = [1 if i > 0 else -1 if i < 0 else 0 for i in temp]
             del temp
 
@@ -113,9 +147,9 @@ class Indicator:
         :param period: the period to take LL and HH
         :return: None
         """
-        Lowest_Low = self.df['Low'].rolling(window=period, min_periods=7).min()
-        Highest_High = self.df['High'].rolling(window=period, min_periods=7).max()
-        self.k = 100 * ((self.df['Close'] - Lowest_Low) / (Highest_High - Lowest_Low))
+        Lowest_Low = self.df[config['columns']['low_col']].rolling(window=period, min_periods=7).min()
+        Highest_High = self.df[config['columns']['high_col']].rolling(window=period, min_periods=7).max()
+        self.k = 100 * ((self.df[config['columns']['close_col']] - Lowest_Low) / (Highest_High - Lowest_Low))
         if not self.td:
             self.df[f'k_{period}'] = self.k.fillna(0)
         else:
@@ -141,7 +175,7 @@ class Indicator:
         :param period: int, time period for gains, losses
         :return: None
         """
-        delta = self.df['Close'].diff()
+        delta = self.df[config['columns']['close_col']].diff()
         rs = delta.where(delta > 0, 0).rolling(window=period, min_periods=1).mean() / (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=1).mean()
         if not self.td:
             self.df[f'rsi_{period}'] = 100 - (100/(1 + rs))
@@ -174,19 +208,19 @@ class Indicator:
         :param period:
         :return:
         """
-        Lowest_Low = self.df['Low'].rolling(window=period,min_periods=7).min()
-        Highest_High = self.df['High'].rolling(window=period,min_periods=7).max()
+        Lowest_Low = self.df[config['columns']['low_col']].rolling(window=period,min_periods=7).min()
+        Highest_High = self.df[config['columns']['high_col']].rolling(window=period,min_periods=7).max()
         if not self.td:
-            self.df[f'r_{period}'] = (100*(Highest_High - self.df['Close'])/(Highest_High-Lowest_Low)).fillna(0)
+            self.df[f'r_{period}'] = (100*(Highest_High - self.df[config['columns']['close_col']])/(Highest_High-Lowest_Low)).fillna(0)
         else:
-            self.df[f'r_{period}_td'] = np.sign(((Highest_High - self.df['Close'])/(Highest_High-Lowest_Low)).diff().fillna(0))
+            self.df[f'r_{period}_td'] = np.sign(((Highest_High - self.df[config['columns']['close_col']])/(Highest_High-Lowest_Low)).diff().fillna(0))
 
     def ad(self):
         """
         calculates the accumulation/distribution oscillator
         :return: None
         """
-        mfv = self.df['Volume'] * (((2*self.df['Close']) - self.df['High'] - self.df['Low']) / ((self.df['High'] - self.df['Low'])))
+        mfv = self.df[config['columns']['volume_col']] * (((2*self.df[config['columns']['close_col']]) - self.df[config['columns']['high_col']] - self.df[config['columns']['low_col']]) / ((self.df[config['columns']['high_col']] - self.df[config['columns']['low_col']])))
         if not self.td:
             self.df['ad'] = mfv.cumsum()
         else:
@@ -197,7 +231,7 @@ class Indicator:
         calculates the commodity channel index
         :return: None
         """
-        temp = np.array([(x+y+z)/3 for x,y,z in zip(self.df['Close'], self.df['High'], self.df['Low'])])
+        temp = np.array([(x+y+z)/3 for x,y,z in zip(self.df[config['columns']['close_col']], self.df[config['columns']['high_col']], self.df[config['columns']['low_col']])])
         tempdf = pd.DataFrame(temp,columns=['tempvar'])
         sma = tempdf['tempvar'].rolling(window=period, min_periods=1).mean()
         dev = [abs(x-y) for x,y in zip(temp,sma)]
@@ -231,6 +265,23 @@ class Indicator:
             self.df[f'cci_{period}_td'] = vals
             del vals
         del temp, tempdf, sma, dev, means, ccis
+
+    def generate_all_indicators(self):
+        """
+        Generates all indicators and adds them to the DataFrame.
+        :return: None
+        """
+        self.sma()
+        self.wma()
+        self.momentum()
+        self.stochastic_k()
+        self.stochastic_d()
+        self.rsi()
+        self.stochatic_r()
+        self.ad()
+        # self.cci()
+
+        return self.df
 
 
 

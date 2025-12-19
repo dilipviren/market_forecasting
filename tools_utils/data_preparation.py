@@ -1,23 +1,50 @@
-import tools
+import tools_utils.runtime_tools as runtime_tools
 import pandas as pd
+from datetime import datetime
+
+config = runtime_tools.GetConfig().get_config()['columns']
 
 
 class DataPrep:
-    def __init__(self, data, test_size: float = 0.2, run_date: str = None):
-        self.data = data
+    def __init__(self, test_size: float = 0.2, run_date: str = '2024-06-01'):
         self.test_size = test_size
-        self.run_date = run_date
+        self.run_date = pd.to_datetime(run_date) if run_date else None
 
-    def split_data(self, data):
-        train_data = data[:-int(len(data) * self.test_size)]
-        test_data = data[-int(len(data) * self.test_size):]
-        return train_data, test_data
+    def convert_timestamp(self, data: pd.DataFrame, time_col: str=config['date_col']) -> pd.DataFrame:
+        df = data.copy()
+        df[time_col] = pd.to_datetime(df[time_col])
+        return df
     
-    def filter_by_date(self):
-        if self.run_date:
-            filtered_data = self.data[self.data['date'] <= self.run_date]
-            return filtered_data
-        return self.data
+    def split_train_test(self, data: pd.DataFrame):
+        df = data.copy().sort_values(by=config['date_col']).reset_index(drop=True)
+        test_len = int(self.test_size * len(df))
+        # print(self.run_date)
+        if df[config['date_col']].dtype != 'datetime64[ns]':
+            df[config['date_col']] = [pd.to_datetime(d) for d in df[config['date_col']]]
+        # print(df[config['date_col']].dtype)
+
+        if self.run_date is not None:
+            if len(df[df[config['date_col']]>=self.run_date])>test_len:
+                print('sufficient data exists past run date, splitting data.')
+                split_index = int(len(df) - test_len)
+                train_data = df.iloc[:split_index]
+                test_data = df.iloc[split_index:]
+                return train_data, test_data
+            else:
+                print('insufficient data exists past run date, generating future timestamps.')
+                train_data = df[df[config['date_col']]<self.run_date]
+                test_dict = {}
+                for col in train_data.columns:
+                    test_dict[col] = [0] * int(test_len)
+                test_data = pd.DataFrame(test_dict)
+                test_data[config['date_col']] = pd.date_range(start=self.run_date, periods=int(test_len), freq='D')[:]
+                return train_data, test_data
+        else:
+            split_index = int(len(df) - test_len)
+            train_data = df.iloc[:split_index]
+            test_data = df.iloc[split_index:]
+            return train_data, test_data
+
     
     def split_by_run_date(self):
         """

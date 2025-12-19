@@ -4,6 +4,32 @@ requests:
 
 columns:
   name_col: 'name'
-  symbol_col: 'symbol'
+  symbol_col: 'SYMBOL'
   fromdate_col: 'start_date'
   todate_col: 'end_date'
+  date_col: 'DATE'
+  open_col: 'OPEN'
+  high_col: 'HIGH'
+  low_col: 'LOW'
+  close_col: 'CLOSE'
+  volume_col: 'VOLUME'
+
+run_date: '2024-06-01'
+
+select_cols:
+  - "symbol"
+  - "date"
+  - "open"
+  - "high"
+  - "low"
+  - "close"
+  - "volume"
+
+
+feature_cols:
+  - "open"
+  - "high"
+  - "low"
+  - "volume"
+
+

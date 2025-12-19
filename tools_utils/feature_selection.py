@@ -3,9 +3,66 @@ from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
 import pandas as pd
 from boruta import BorutaPy
+import tools_utils.runtime_tools as runtime_tools
 import numpy as np
 # pd.set_option('display.max_columns', None)
 
+config = runtime_tools.GetConfig().get_config()
+
+date_col = config['columns']['date_col']
+close_col = config['columns']['close_col']
+symbol_col = config['columns']['symbol_col']
+
+
+class PCAFeatureSelector:
+    """
+    Wrapper class exposing the PCA feature extraction as a method.
+    Delegates to the module-level principalca function.
+    """
+    def __init__(self, n_components: int = 8):
+        self.n_components = n_components
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply PCA and return principal components DataFrame.
+        :param df: input DataFrame (expects a 'Close' column)
+        :param n_components: override default number of components
+        :return: DataFrame of principal components
+        """
+        df = df.fillna(0)
+        feature_cols =  [i for i in df.columns if i not in [close_col, date_col, symbol_col]]
+
+        x = df[feature_cols].values
+        sc = StandardScaler()
+        scaled_x = sc.fit_transform(x)
+
+        pca = PCA(n_components=self.n_components if self.n_components is not None else self.n_components)
+        principal_components = pca.fit_transform(scaled_x)
+        principal_df = pd.DataFrame(data=principal_components,columns=[f'pc{i+1}' for i in range(np.shape(principal_components)[1])])
+
+        principal_df[date_col] = df[date_col].values
+        principal_df[symbol_col] = df[symbol_col].values
+        principal_df[close_col] = df[close_col].values
+        return principal_df
+
+
+class BorutaFeatureSelector:
+    """
+    Wrapper class exposing the Boruta feature selection as a method.
+    Delegates to the module-level Boruta_py function.
+    """
+    def __init__(self, n_estimators='auto', random_state: int = 69420, max_depth: int = 5):
+        self.n_estimators = n_estimators
+        self.random_state = random_state
+        self.max_depth = max_depth
+
+    def select(self, df: pd.DataFrame):
+        """
+        Run Boruta feature selection and return (transformed_array, ranking).
+        :param df: input DataFrame (expects a 'Close' column)
+        :return: tuple of (selected_features_array, ranking_array)
+        """
+        return Boruta_py(df, n_estimators=self.n_estimators, random_state=self.random_state, max_depth=self.max_depth)
 
 def principalca(df, n=8):
     """
