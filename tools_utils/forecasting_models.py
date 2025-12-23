@@ -33,9 +33,10 @@ class StockForecaster:
         # self.test_size = test_size
         # self.data = train
         self.look_back = look_back
+        self.feature_cols = feature_cols
         
         # Preprocessing: Ensure data is sorted
-        self.data = self.data.sort_index()
+        # self.data = self.data.sort_index()
         
         # Split Index for Time Series (No shuffling)
         # split_idx = int(len(self.data) * (1 - self.test_size))
@@ -46,10 +47,10 @@ class StockForecaster:
         
         # Prepare arrays for Scikit-Learn models (X = Time/Index, y = Price)
         # Note: Using integer index for regression on time
-        if feature_cols is None:
+        if self.feature_cols is None:
             self.X_train_reg = np.arange(len(self.train_data)).reshape(-1, 1)
             self.y_train_reg = self.train_data[self.target_col].values
-            self.X_test_reg = np.arange(len(self.train_data), len(self.data)).reshape(-1, 1)
+            self.X_test_reg = np.arange(len(self.train_data), len(self.test_data)).reshape(-1, 1)
             self.y_test_reg = self.test_data[self.target_col].values
 
         # Prepare arrays for Models
@@ -122,11 +123,14 @@ class StockForecaster:
         predictions = model.forecast(len(self.test_data))
         return self._evaluate(self.test_data[self.target_col], predictions, "TES")
 
-    def lstm_neural_network(self):
+    def lstm_neural_network(self,scaled=True,scaler=None):
         """Long Short-Term Memory (LSTM) Recurrent Neural Network."""
         # 1. Scale Data
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        dataset = scaler.fit_transform(self.data[[self.target_col]])
+        if not scaled:
+            scaler = MinMaxScaler(feature_range=(0, 1))
+            dataset = scaler.fit_transform(self.data[[self.target_col]])
+        else:
+            dataset = pd.concat([self.train_data, self.test_data])[self.target_col].values.reshape(-1, 1)
         
         # 2. Create Sequences
         def create_dataset(dataset, look_back=1):
@@ -164,10 +168,13 @@ class StockForecaster:
         test_predict = model.predict(X_test)
         
         # Invert predictions
-        test_predict = scaler.inverse_transform(test_predict).flatten()
+        if not scaled:
+            train_predict = scaler.inverse_transform(train_predict).flatten()
+            test_predict = scaler.inverse_transform(test_predict).flatten()
         
         # Truncate y_true to match LSTM output shape (lost rows due to look_back)
-        y_true = self.data[self.target_col].values[len(self.train_data):]
+        # y_true = self.data[self.target_col].values[len(self.train_data):]
+        y_true = y_test
         # Align lengths if necessary
         min_len = min(len(y_true), len(test_predict))
         
